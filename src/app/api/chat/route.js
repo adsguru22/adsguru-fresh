@@ -1,35 +1,51 @@
-import OpenAI from 'openai';
-import { NextResponse } from 'next/server';
+import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
+// Pastikan API Key dipanggil betul
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Note: removed NEXT_PUBLIC_
+  apiKey: process.env.OPENAI_API_KEY, // Wajib ada dalam .env.local
 });
 
 export async function POST(request) {
   try {
-    const { messages } = await request.json();
+    const { messages, model = "gpt-4" } = await request.json();
+
+    if (!messages || !Array.isArray(messages)) {
+      console.error("❌ Error: Invalid input format");
+      return NextResponse.json({ error: "Invalid input format" }, { status: 400 });
+    }
+
+    console.log("✅ Request received:", { messages, model });
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: model, // Default GPT-4
       messages: [
         {
           role: "system",
-          content: "You are an expert AI marketing assistant specialized in Facebook/TikTok marketing, business strategy, and web development. When users request sales pages or marketing content, provide complete, ready-to-use code."
+          content: process.env.DEFAULT_INSTRUCTION || 
+            "You are AdsGuru AI, an expert AI marketing assistant specialized in Facebook/TikTok marketing, business strategy, and web development. When users request sales pages or marketing content, provide complete, ready-to-use code.",
         },
-        ...messages
+        ...messages,
       ],
       temperature: 0.7,
     });
 
-    return NextResponse.json({ 
-      message: response.choices[0].message.content 
+    console.log("✅ OpenAI Response:", response);
+
+    return NextResponse.json({
+      message: response.choices?.[0]?.message?.content || "No response from AI",
     });
 
   } catch (error) {
-    console.error('OpenAI API Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("❌ OpenAI API Error:", error);
+
+    let errorMessage = "Internal server error";
+    if (error.response?.data?.error?.message) {
+      errorMessage = `OpenAI Error: ${error.response.data.error.message}`;
+    } else if (error.message) {
+      errorMessage = `Error: ${error.message}`;
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
-}
+} // <-- Missing '}' is fixed here
